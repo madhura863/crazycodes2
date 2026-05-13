@@ -1,0 +1,347 @@
+# Online Retail Dataset using HBase and HiveQL
+
+Dataset Columns:
+
+```text
+InvoiceNo
+StockCode
+Description
+Quantity
+InvoiceDate
+UnitPrice
+CustomerID
+Country
+```
+
+---
+
+# Step 1: Start Hadoop, Hive and HBase Services
+
+```bash
+hive
+```
+
+---
+
+# i) Create and Load Online Retail Table in Hive
+
+## Create Database
+
+```sql
+CREATE DATABASE retail_db;
+USE retail_db;
+```
+
+---
+
+## Create OnlineRetail Table
+
+```sql
+CREATE TABLE online_retail(
+InvoiceNo STRING,
+StockCode STRING,
+Description STRING,
+Quantity INT,
+InvoiceDate STRING,
+UnitPrice DOUBLE,
+CustomerID STRING,
+Country STRING
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+STORED AS TEXTFILE;
+```
+
+---
+
+# Load Dataset into Hive
+
+Suppose your dataset file is:
+
+```text
+online_retail.csv
+```
+
+stored in:
+
+```text
+/home/cloudera/online_retail.csv
+```
+
+---
+
+## Load Data
+
+```sql
+LOAD DATA LOCAL INPATH '/home/cloudera/online_retail.csv'
+INTO TABLE online_retail;
+```
+
+---
+
+## Display Records
+
+```sql
+SELECT * FROM online_retail LIMIT 10;
+```
+
+---
+
+# j) Create Index on Online Retail Table in Hive
+
+## Create Index on CustomerID
+
+```sql
+CREATE INDEX retail_index
+ON TABLE online_retail(CustomerID)
+AS 'COMPACT'
+WITH DEFERRED REBUILD;
+```
+
+---
+
+## Rebuild Index
+
+```sql
+ALTER INDEX retail_index
+ON online_retail
+REBUILD;
+```
+
+---
+
+# k) Find Total and Average Sales in Hive
+
+Sales Formula:
+
+```text
+Sales = Quantity × UnitPrice
+```
+
+---
+
+## Total Sales
+
+```sql
+SELECT
+SUM(Quantity * UnitPrice) AS Total_Sales
+FROM online_retail;
+```
+
+---
+
+## Average Sales
+
+```sql
+SELECT
+AVG(Quantity * UnitPrice) AS Average_Sales
+FROM online_retail;
+```
+
+---
+
+# l) Find Order Details with Maximum Cost
+
+```sql
+SELECT
+InvoiceNo,
+Description,
+Quantity,
+UnitPrice,
+(Quantity * UnitPrice) AS Total_Cost,
+CustomerID,
+Country
+FROM online_retail
+ORDER BY Total_Cost DESC
+LIMIT 1;
+```
+
+---
+
+# m) Find Customer Details with Maximum Order Total
+
+```sql
+SELECT
+CustomerID,
+SUM(Quantity * UnitPrice) AS Order_Total
+FROM online_retail
+GROUP BY CustomerID
+ORDER BY Order_Total DESC
+LIMIT 1;
+```
+
+---
+
+# n) Find Country with Maximum and Minimum Sale
+
+---
+
+## Country with Maximum Sale
+
+```sql
+SELECT
+Country,
+SUM(Quantity * UnitPrice) AS Total_Sale
+FROM online_retail
+GROUP BY Country
+ORDER BY Total_Sale DESC
+LIMIT 1;
+```
+
+---
+
+## Country with Minimum Sale
+
+```sql
+SELECT
+Country,
+SUM(Quantity * UnitPrice) AS Total_Sale
+FROM online_retail
+GROUP BY Country
+ORDER BY Total_Sale ASC
+LIMIT 1;
+```
+
+---
+
+# o) Create External Hive Table Connected to HBase
+
+---
+
+# Step 1: Open HBase Shell
+
+```bash
+hbase shell
+```
+
+---
+
+# Create HBase Table
+
+```bash
+create 'online_retail_hbase','retail'
+```
+
+---
+
+# Insert Sample Records into HBase
+
+```bash
+put 'online_retail_hbase','1','retail:InvoiceNo','536365'
+put 'online_retail_hbase','1','retail:StockCode','85123A'
+put 'online_retail_hbase','1','retail:Description','WHITE HANGING HEART T-LIGHT HOLDER'
+put 'online_retail_hbase','1','retail:Quantity','6'
+put 'online_retail_hbase','1','retail:InvoiceDate','12/1/2010 8:26'
+put 'online_retail_hbase','1','retail:UnitPrice','2.55'
+put 'online_retail_hbase','1','retail:CustomerID','17850'
+put 'online_retail_hbase','1','retail:Country','United Kingdom'
+```
+
+---
+
+# Verify HBase Table
+
+```bash
+scan 'online_retail_hbase'
+```
+
+---
+
+# Exit HBase
+
+```bash
+exit
+```
+
+---
+
+# Step 2: Create External Hive Table Mapping HBase Table
+
+```sql
+CREATE EXTERNAL TABLE retail_hive(
+id STRING,
+InvoiceNo STRING,
+StockCode STRING,
+Description STRING,
+Quantity STRING,
+InvoiceDate STRING,
+UnitPrice STRING,
+CustomerID STRING,
+Country STRING
+)
+STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+WITH SERDEPROPERTIES (
+"hbase.columns.mapping"=":key,
+retail:InvoiceNo,
+retail:StockCode,
+retail:Description,
+retail:Quantity,
+retail:InvoiceDate,
+retail:UnitPrice,
+retail:CustomerID,
+retail:Country"
+)
+TBLPROPERTIES ("hbase.table.name"="online_retail_hbase");
+```
+
+---
+
+# p) Display Records of OnlineRetail Table in HBase
+
+## In HBase Shell
+
+```bash
+scan 'online_retail_hbase'
+```
+
+---
+
+# Expected Output
+
+```text
+ROW COLUMN+CELL
+
+1 column=retail:InvoiceNo, value=536365
+1 column=retail:StockCode, value=85123A
+1 column=retail:Description, value=WHITE HANGING HEART T-LIGHT HOLDER
+1 column=retail:Quantity, value=6
+1 column=retail:InvoiceDate, value=12/1/2010 8:26
+1 column=retail:UnitPrice, value=2.55
+1 column=retail:CustomerID, value=17850
+1 column=retail:Country, value=United Kingdom
+```
+
+---
+
+# Verify External Hive Table
+
+```sql
+SELECT * FROM retail_hive;
+```
+
+---
+
+# Important Notes
+
+## If Dataset Has Header Row
+
+Skip header while loading:
+
+```sql
+CREATE TABLE online_retail(
+InvoiceNo STRING,
+StockCode STRING,
+Description STRING,
+Quantity INT,
+InvoiceDate STRING,
+UnitPrice DOUBLE,
+CustomerID STRING,
+Country STRING
+)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+TBLPROPERTIES ("skip.header.line.count"="1");
+```
+
+---
+.

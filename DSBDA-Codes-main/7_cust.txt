@@ -1,0 +1,249 @@
+# Create Customer Information HBase Table
+
+```jsx
+create 'customer_info_hbase', 'customer'
+```
+
+```jsx
+list
+```
+
+# Insert Customer Information Data
+
+```jsx
+put 'customer_info_hbase', 'C101', 'customer:cust_name', 'Rahul'
+
+put 'customer_info_hbase', 'C101', 'customer:order_id', 'O101'
+
+put 'customer_info_hbase', 'C102', 'customer:cust_name', 'Amit'
+
+put 'customer_info_hbase', 'C102', 'customer:order_id', 'O102'
+
+put 'customer_info_hbase', 'C103', 'customer:cust_name', 'Sneha'
+
+put 'customer_info_hbase', 'C103', 'customer:order_id', 'O103'
+
+scan 'customer_info_hbase'
+```
+
+# Exit HBase Shell
+
+```jsx
+exit
+```
+
+# Open Hive Shell
+
+```jsx
+hive
+```
+
+# Create Database
+
+```jsx
+CREATE DATABASE customerdb;
+```
+
+```jsx
+USE customerdb;
+```
+
+# a. Create Customer_info Table
+
+```jsx
+CREATE TABLE customer_info(
+cust_id STRING,
+
+cust_name STRING,
+
+order_id STRING
+
+)
+
+ROW FORMAT DELIMITED
+
+FIELDS TERMINATED BY ',';
+```
+
+# Create order_info Table
+
+```jsx
+CREATE TABLE order_info(
+order_id STRING,
+
+item_id STRING,
+
+quantity INT
+
+)
+
+ROW FORMAT DELIMITED
+
+FIELDS TERMINATED BY ',';
+```
+
+# Create item_info Table
+
+```jsx
+CREATE TABLE item_info(
+item_id STRING,
+
+item_name STRING,
+
+item_price INT
+
+)
+
+ROW FORMAT DELIMITED
+
+FIELDS TERMINATED BY ',';
+```
+
+# b. Load Data from Local Storage
+
+```jsx
+LOAD DATA LOCAL INPATH '/home/cloudera/customer_info.csv'
+```
+
+```jsx
+INTO TABLE customer_info;
+```
+
+```jsx
+LOAD DATA LOCAL INPATH '/home/cloudera/order_info.csv'
+```
+
+```jsx
+INTO TABLE order_info;
+```
+
+```jsx
+LOAD DATA LOCAL INPATH '/home/cloudera/item_info.csv'
+```
+
+```jsx
+INTO TABLE item_info;
+```
+
+# Display Tables
+
+```jsx
+SELECT * FROM customer_info;
+```
+
+```jsx
+SELECT * FROM order_info;
+```
+
+```jsx
+SELECT * FROM item_info;
+```
+
+# c. Perform Join Tables with Hive
+
+```jsx
+SELECT c.cust_id,
+c.cust_name,
+
+o.order_id,
+
+i.item_name,
+
+o.quantity,
+
+i.item_price
+
+FROM customer_info c
+
+JOIN order_info o
+
+ON c.order_id = o.order_id
+
+JOIN item_info i
+
+ON o.item_id = i.item_id;
+```
+
+# d. Create Index on Customer Information System
+
+```jsx
+CREATE INDEX customer_index
+ON TABLE customer_info(cust_name)
+
+AS 'COMPACT'
+
+SHOW INDEXES ON customer_info;
+```
+
+# e. Find Total and Average Sales
+
+```jsx
+SELECT SUM(o.quantity * i.item_price) AS total_sales
+FROM order_info o
+
+JOIN item_info i
+
+ON o.item_id = i.item_id;
+
+SELECT AVG(o.quantity * i.item_price) AS average_sales
+
+FROM order_info o
+
+JOIN item_info i
+
+ON o.item_id = i.item_id;
+```
+
+# f. Find Order Details with Maximum Cost
+
+```jsx
+SELECT o.order_id,
+i.item_name,
+
+o.quantity,
+
+i.item_price,
+
+(o.quantity * i.item_price) AS total_cost
+
+FROM order_info o
+
+JOIN item_info i
+
+ON o.item_id = i.item_id
+
+ORDER BY total_cost DESC
+
+LIMIT 1;
+```
+
+# g. Create External Hive Table Connected to HBase
+
+```jsx
+CREATE EXTERNAL TABLE customer_hive(
+cust_id STRING,
+
+cust_name STRING,
+
+order_id STRING
+
+)
+
+STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+
+WITH SERDEPROPERTIES (
+
+"hbase.columns.mapping" =
+
+":key,customer:cust_name,customer:order_id"
+
+)
+
+TBLPROPERTIES ("hbase.table.name" = "customer_info_hbase");
+```
+
+# h. Display Records of Customer Information Table in HBase
+
+```jsx
+SELECT * FROM customer_hive;
+```

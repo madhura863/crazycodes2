@@ -1,0 +1,192 @@
+# Initial Setup
+
+sudo su
+
+readlink -f /usr/bin/java
+
+export JAVA_HOME=/usr/java/jdk1.7.0_67-cloudera/jre
+
+echo $JAVA_HOME
+
+/usr/lib/hbase/bin/hbase-daemon.sh start master
+
+/usr/lib/hbase/bin/hbase-daemon.sh start regionserver
+
+jps
+
+hbase shell
+
+
+# a. Create Flight Info HBase Table
+
+create 'flight_info', 'info', 'schedule', 'delay'
+
+list
+
+
+# Insert Flight Information Data
+
+put 'flight_info', 'F101', 'info:flight_name', 'AirIndia'
+
+put 'flight_info', 'F101', 'info:source', 'Mumbai'
+
+put 'flight_info', 'F101', 'info:destination', 'Delhi'
+
+put 'flight_info', 'F101', 'schedule:departure', '10:00'
+
+put 'flight_info', 'F101', 'schedule:arrival', '12:00'
+
+put 'flight_info', 'F101', 'delay:departure_delay', '30'
+
+put 'flight_info', 'F102', 'info:flight_name', 'Indigo'
+
+put 'flight_info', 'F102', 'info:source', 'Pune'
+
+put 'flight_info', 'F102', 'info:destination', 'Bangalore'
+
+put 'flight_info', 'F102', 'schedule:departure', '11:00'
+
+put 'flight_info', 'F102', 'schedule:arrival', '13:00'
+
+put 'flight_info', 'F102', 'delay:departure_delay', '15'
+
+put 'flight_info', 'F103', 'info:flight_name', 'SpiceJet'
+
+put 'flight_info', 'F103', 'info:source', 'Chennai'
+
+put 'flight_info', 'F103', 'info:destination', 'Hyderabad'
+
+put 'flight_info', 'F103', 'schedule:departure', '09:00'
+
+put 'flight_info', 'F103', 'schedule:arrival', '10:30'
+
+put 'flight_info', 'F103', 'delay:departure_delay', '45'
+
+scan 'flight_info'
+
+
+# b. Demonstrate Creating, Dropping, and Altering Tables in HBase
+
+# Create Table
+
+create 'flight_info', 'info', 'schedule', 'delay'
+
+
+# Alter Table
+
+alter 'flight_info', 'status'
+
+describe 'flight_info'
+
+
+# Drop Table
+
+disable 'flight_info'
+
+drop 'flight_info'
+
+
+# Recreate Table Again
+
+create 'flight_info', 'info', 'schedule', 'delay'
+
+
+# Reinsert Data
+
+put 'flight_info', 'F101', 'info:flight_name', 'AirIndia'
+
+put 'flight_info', 'F101', 'info:source', 'Mumbai'
+
+put 'flight_info', 'F101', 'info:destination', 'Delhi'
+
+put 'flight_info', 'F101', 'schedule:departure', '10:00'
+
+put 'flight_info', 'F101', 'schedule:arrival', '12:00'
+
+put 'flight_info', 'F101', 'delay:departure_delay', '30'
+
+put 'flight_info', 'F102', 'info:flight_name', 'Indigo'
+
+put 'flight_info', 'F102', 'info:source', 'Pune'
+
+put 'flight_info', 'F102', 'info:destination', 'Bangalore'
+
+put 'flight_info', 'F102', 'schedule:departure', '11:00'
+
+put 'flight_info', 'F102', 'schedule:arrival', '13:00'
+
+put 'flight_info', 'F102', 'delay:departure_delay', '15'
+
+put 'flight_info', 'F103', 'info:flight_name', 'SpiceJet'
+
+put 'flight_info', 'F103', 'info:source', 'Chennai'
+
+put 'flight_info', 'F103', 'info:destination', 'Hyderabad'
+
+put 'flight_info', 'F103', 'schedule:departure', '09:00'
+
+put 'flight_info', 'F103', 'schedule:arrival', '10:30'
+
+put 'flight_info', 'F103', 'delay:departure_delay', '45'
+
+
+# Exit HBase Shell
+
+exit
+
+
+# Open Hive Shell
+
+hive
+
+
+# c. Create External Hive Table Connected to HBase
+
+CREATE DATABASE flightdb;
+
+USE flightdb;
+
+CREATE EXTERNAL TABLE flight_hive(
+flight_id STRING,
+flight_name STRING,
+source STRING,
+destination STRING,
+departure STRING,
+arrival STRING,
+departure_delay INT
+)
+STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+WITH SERDEPROPERTIES (
+"hbase.columns.mapping" =
+":key,info:flight_name,info:source,info:destination,schedule:departure,schedule:arrival,delay:departure_delay"
+)
+TBLPROPERTIES ("hbase.table.name" = "flight_info");
+
+
+SELECT * FROM flight_hive;
+
+
+# d. Find Total Departure Delay in Hive
+
+SELECT SUM(departure_delay) AS total_delay
+FROM flight_hive;
+
+
+# e. Find Average Departure Delay in Hive
+
+SELECT AVG(departure_delay) AS average_delay
+FROM flight_hive;
+
+
+# f. Create Index on Flight Information Table
+
+CREATE INDEX flight_index
+ON TABLE flight_hive(flight_name)
+AS 'COMPACT'
+WITH DEFERRED REBUILD;
+
+ALTER INDEX flight_index
+ON flight_hive
+REBUILD;
+
+SHOW INDEXES ON flight_hive;
